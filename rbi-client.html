@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RBI Client</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #333;
+            margin-top: 0;
+        }
+        .control-panel {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            background-color: #f8f8f8;
+            border-left: 4px solid #4CAF50;
+        }
+        .error {
+            border-left-color: #f44336;
+        }
+        .video-container {
+            margin-top: 20px;
+            background-color: #000;
+            border-radius: 5px;
+            overflow: hidden;
+            position: relative;
+        }
+        #remoteVideo {
+            width: 100%;
+            display: block;
+        }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 18px;
+        }
+        .log-container {
+            margin-top: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+            background-color: #f0f0f0;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+        }
+        .log-time {
+            color: #666;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>RBI Client</h1>
+        
+        <div class="control-panel">
+            <div class="form-group">
+                <label for="serverUrl">Server URL:</label>
+                <input type="text" id="serverUrl" value="http://localhost:3000" placeholder="http://localhost:3000">
+            </div>
+            
+            <div class="form-group">
+                <label for="startUrl">Start URL:</label>
+                <input type="text" id="startUrl" value="https://example.com" placeholder="https://example.com">
+            </div>
+            
+            <div class="form-group">
+                <label for="navigateUrl">Navigate URL:</label>
+                <input type="text" id="navigateUrl" value="https://google.com" placeholder="https://google.com">
+            </div>
+            
+            <div class="form-group">
+                <label for="width">Width:</label>
+                <input type="number" id="width" value="1280" min="320" max="1920">
+            </div>
+            
+            <div class="form-group">
+                <label for="height">Height:</label>
+                <input type="number" id="height" value="720" min="240" max="1080">
+            </div>
+            
+            <div class="form-group">
+                <label for="frameRate">Frame Rate:</label>
+                <input type="number" id="frameRate" value="30" min="10" max="60">
+            </div>
+            
+            <div class="form-group">
+                <label for="quality">Quality:</label>
+                <select id="quality">
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high" selected>High</option>
+                    <option value="ultra">Ultra</option>
+                </select>
+            </div>
+            
+            <button id="startButton">Start Session</button>
+            <button id="navigateButton" disabled>Navigate</button>
+            <button id="stopButton" disabled>Stop Session</button>
+        </div>
+        
+        <div id="statusMessage" class="status">Ready to connect to RBI Server.</div>
+        
+        <div class="video-container">
+            <video id="remoteVideo" autoplay playsinline></video>
+            <div id="loadingMessage" class="loading">Waiting for connection...</div>
+        </div>
+        
+        <div class="log-container" id="logContainer"></div>
+    </div>
+
+    <script>
+        // Global variables
+        let sessionId = null;
+        let peerConnection = null;
+        let serverUrl = '';
+        
+        // DOM elements
+        const startButton = document.getElementById('startButton');
+        const navigateButton = document.getElementById('navigateButton');
+        const stopButton = document.getElementById('stopButton');
+        const statusMessage = document.getElementById('statusMessage');
+        const remoteVideo = document.getElementById('remoteVideo');
+        const loadingMessage = document.getElementById('loadingMessage');
+        const logContainer = document.getElementById('logContainer');
+        
+        // Add event listeners
+        startButton.addEventListener('click', startSession);
+        navigateButton.addEventListener('click', navigateToUrl);
+        stopButton.addEventListener('click', stopSession);
+        
+        // Log function
+        function log(message) {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            logEntry.innerHTML = `<span class="log-time">[${timeString}]</span> ${message}`;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+        
+        // Set status message
+        function setStatus(message, isError = false) {
+            statusMessage.textContent = message;
+            if (isError) {
+                statusMessage.classList.add('error');
+            } else {
+                statusMessage.classList.remove('error');
+            }
+            log(message);
+        }
+        
+        // Create session
+        async function startSession() {
+            try {
+                // Disable start button
+                startButton.disabled = true;
+                
+                // Get server URL
+                serverUrl = document.getElementById('serverUrl').value.trim();
+                if (!serverUrl) {
+                    throw new Error('Server URL is required');
+                }
+                
+                // Get start URL
+                const startUrl = document.getElementById('startUrl').value.trim();
+                if (!startUrl) {
+                    throw new Error('Start URL is required');
+                }
+                
+                // Get viewport dimensions
+                const width = parseInt(document.getElementById('width').value);
+                const height = parseInt(document.getElementById('height').value);
+                
+                setStatus('Creating session...');
+                
+                // Create session
+                const sessionResponse = await fetch(`${serverUrl}/api/sessions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        startUrl: startUrl,
+                        viewport: {
+                            width: width,
+                            height: height
+                        }
+                    })
+                });
+                
+                if (!sessionResponse.ok) {
+                    throw new Error(`Failed to create session: ${sessionResponse.statusText}`);
+                }
+                
+                const sessionData = await sessionResponse.json();
+                if (!sessionData.success) {
+                    throw new Error(`Failed to create session: ${sessionData.error?.message || 'Unknown error'}`);
+                }
+                
+                sessionId = sessionData.data.sessionId;
+                log(`Session created with ID: ${sessionId}`);
+                
+                // Start WebRTC connection
+                await setupWebRTC();
+                
+                // Start stream
+                await startStream();
+                
+                // Enable navigate and stop buttons
+                navigateButton.disabled = false;
+                stopButton.disabled = false;
+                
+                setStatus(`Session started with ID: ${sessionId}`);
+            } catch (error) {
+                setStatus(`Error: ${error.message}`, true);
+                startButton.disabled = false;
+            }
+        }
+        
+        // Setup WebRTC
+        async function setupWebRTC() {
+            try {
+                setStatus('Setting up WebRTC connection...');
+                
+                // Create RTCPeerConnection
+                const configuration = {
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' }
+                    ]
+                };
+                
+                peerConnection = new RTCPeerConnection(configuration);
+                
+                // Set up event handlers
+                peerConnection.ontrack = (event) => {
+                    log('Received remote track');
+                    if (event.streams && event.streams[0]) {
+                        remoteVideo.srcObject = event.streams[0];
+                        loadingMessage.style.display = 'none';
+                    }
+                };
+                
+                peerConnection.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        sendIceCandidate(event.candidate);
+                    }
+                };
+                
+                peerConnection.oniceconnectionstatechange = () => {
+                    log(`ICE connection state: ${peerConnection.iceConnectionState}`);
+                };
+                
+                // Create WebRTC connection
+                const webrtcResponse = await fetch(`${serverUrl}/api/streams/${sessionId}/webrtc`, {
+                    method: 'POST'
+                });
+                
+                if (!webrtcResponse.ok) {
+                    throw new Error(`Failed to create WebRTC connection: ${webrtcResponse.statusText}`);
+                }
+                
+                const webrtcData = await webrtcResponse.json();
+                if (!webrtcData.success) {
+                    throw new Error(`Failed to create WebRTC connection: ${webrtcData.error?.message || 'Unknown error'}`);
+                }
+                
+                // Set remote description (offer)
+                const offer = webrtcData.data.offer;
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+                
+                // Create answer
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+                
+                // Send answer to server
+                const answerResponse = await fetch(`${serverUrl}/api/streams/${sessionId}/webrtc/answer`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        answer: answer
+                    })
+                });
+                
+                if (!answerResponse.ok) {
+                    throw new Error(`Failed to send answer: ${answerResponse.statusText}`);
+                }
+                
+                const answerData = await answerResponse.json();
+                if (!answerData.success) {
+                    throw new Error(`Failed to send answer: ${answerData.error?.message || 'Unknown error'}`);
+                }
+                
+                // Get ICE candidates from server
+                setTimeout(getIceCandidates, 1000);
+                
+                log('WebRTC connection established');
+            } catch (error) {
+                throw new Error(`WebRTC setup failed: ${error.message}`);
+            }
+        }
+        
+        // Send ICE candidate to server
+        async function sendIceCandidate(candidate) {
+            try {
+                const response = await fetch(`${serverUrl}/api/streams/${sessionId}/webrtc/ice-candidate`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        candidate: candidate
+                    })
+                });
+                
+                if (!response.ok) {
+                    log(`Warning: Failed to send ICE candidate: ${response.statusText}`);
+                }
+            } catch (error) {
+                log(`Warning: Failed to send ICE candidate: ${error.message}`);
+            }
+        }
+        
+        // Get ICE candidates from server
+        async function getIceCandidates() {
+            try {
+                const response = await fetch(`${serverUrl}/api/streams/${sessionId}/webrtc/ice-candidates`);
+                
+                if (!response.ok) {
+                    log(`Warning: Failed to get ICE candidates: ${response.statusText}`);
+                    return;
+                }
+                
+                const data = await response.json();
+                if (!data.success) {
+                    log(`Warning: Failed to get ICE candidates: ${data.error?.message || 'Unknown error'}`);
+                    return;
+                }
+                
+                const candidates = data.data.candidates;
+                if (candidates && candidates.length > 0) {
+                    for (const candidate of candidates) {
+                        try {
+                            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+                            log('Added ICE candidate from server');
+                        } catch (error) {
+                            log(`Warning: Failed to add ICE candidate: ${error.message}`);
+                        }
+                    }
+                }
+            } catch (error) {
+                log(`Warning: Failed to get ICE candidates: ${error.message}`);
+            }
+        }
+        
+        // Start stream
+        async function startStream() {
+            try {
+                setStatus('Starting stream...');
+                
+                // Get stream options
+                const quality = document.getElementById('quality').value;
+                const width = parseInt(document.getElementById('width').value);
+                const height = parseInt(document.getElementById('height').value);
+                const frameRate = parseInt(document.getElementById('frameRate').value);
+                
+                // Calculate bitrate based on resolution and framerate
+                // This is a simple heuristic, adjust as needed
+                const bitrate = width * height * frameRate * 0.1;
+                
+                // Start stream
+                const streamResponse = await fetch(`${serverUrl}/api/streams/${sessionId}/start`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        quality: quality,
+                        maxWidth: width,
+                        maxHeight: height,
+                        frameRate: frameRate,
+                        bitrate: bitrate
+                    })
+                });
+                
+                if (!streamResponse.ok) {
+                    throw new Error(`Failed to start stream: ${streamResponse.statusText}`);
+                }
+                
+                const streamData = await streamResponse.json();
+                if (!streamData.success) {
+                    throw new Error(`Failed to start stream: ${streamData.error?.message || 'Unknown error'}`);
+                }
+                
+                log(`Stream started with quality: ${streamData.data.quality}, resolution: ${streamData.data.resolution}, frameRate: ${streamData.data.frameRate}`);
+                setStatus('Stream started successfully');
+            } catch (error) {
+                throw new Error(`Stream start failed: ${error.message}`);
+            }
+        }
+        
+        // Navigate to URL
+        async function navigateToUrl() {
+            try {
+                // Disable navigate button
+                navigateButton.disabled = true;
+                
+                // Get navigate URL
+                const navigateUrl = document.getElementById('navigateUrl').value.trim();
+                if (!navigateUrl) {
+                    throw new Error('Navigate URL is required');
+                }
+                
+                setStatus(`Navigating to ${navigateUrl}...`);
+                
+                // Navigate to URL
+                const navigateResponse = await fetch(`${serverUrl}/api/sessions/${sessionId}/navigate`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        url: navigateUrl
+                    })
+                });
+                
+                if (!navigateResponse.ok) {
+                    throw new Error(`Failed to navigate: ${navigateResponse.statusText}`);
+                }
+                
+                const navigateData = await navigateResponse.json();
+                if (!navigateData.success) {
+                    throw new Error(`Failed to navigate: ${navigateData.error?.message || 'Unknown error'}`);
+                }
+                
+                setStatus(`Navigated to ${navigateUrl}`);
+            } catch (error) {
+                setStatus(`Navigation error: ${error.message}`, true);
+            } finally {
+                // Re-enable navigate button
+                navigateButton.disabled = false;
+            }
+        }
+        
+        // Stop session
+        async function stopSession() {
+            try {
+                // Disable stop button
+                stopButton.disabled = true;
+                
+                setStatus('Stopping session...');
+                
+                // Stop stream
+                if (sessionId) {
+                    try {
+                        await fetch(`${serverUrl}/api/streams/${sessionId}/stop`, {
+                            method: 'POST'
+                        });
+                        log('Stream stopped');
+                    } catch (error) {
+                        log(`Warning: Failed to stop stream: ${error.message}`);
+                    }
+                    
+                    // Destroy session
+                    try {
+                        await fetch(`${serverUrl}/api/sessions/${sessionId}`, {
+                            method: 'DELETE'
+                        });
+                        log('Session destroyed');
+                    } catch (error) {
+                        log(`Warning: Failed to destroy session: ${error.message}`);
+                    }
+                }
+                
+                // Close peer connection
+                if (peerConnection) {
+                    peerConnection.close();
+                    peerConnection = null;
+                    log('WebRTC connection closed');
+                }
+                
+                // Reset video
+                remoteVideo.srcObject = null;
+                loadingMessage.style.display = 'block';
+                loadingMessage.textContent = 'Waiting for connection...';
+                
+                // Reset session ID
+                sessionId = null;
+                
+                // Reset buttons
+                startButton.disabled = false;
+                navigateButton.disabled = true;
+                stopButton.disabled = true;
+                
+                setStatus('Session stopped');
+            } catch (error) {
+                setStatus(`Error stopping session: ${error.message}`, true);
+                stopButton.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
