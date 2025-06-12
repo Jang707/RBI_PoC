@@ -86,3 +86,27 @@ dist
 # OS specific files
 .DS_Store
 Thumbs.db
+
+# rbi-cuda-solution specific ignores
+rbi-cuda-solution/rust-modules/*/target/
+rbi-cuda-solution/rust-modules/*/Cargo.lock
+rbi-cuda-solution/server/logs/
+rbi-cuda-solution/*/node_modules/
+rbi-cuda-solution/*/dist/
+rbi-cuda-solution/*/build/
+rbi-cuda-solution/**/*.o
+rbi-cuda-solution/**/*.so
+rbi-cuda-solution/**/*.a
+rbi-cuda-solution/**/*.dll
+rbi-cuda-solution/**/*.dylib
+rbi-cuda-solution/**/*.exe
+rbi-cuda-solution/**/*.out
+rbi-cuda-solution/**/*.bin
+rbi-cuda-solution/**/*.db
+rbi-cuda-solution/**/*.sqlite
+rbi-cuda-solution/**/*.sqlite3
+rbi-cuda-solution/**/*.bak
+rbi-cuda-solution/**/*.tmp
+rbi-cuda-solution/**/*.temp
+rbi-cuda-solution/**/*.swp
+rbi-cuda-solution/**/*.swo
